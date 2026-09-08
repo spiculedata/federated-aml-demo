@@ -6,7 +6,8 @@
 #   make install     build + install the compiled package into the venv
 #   make test        run the suite against the source tree
 #   make verify      run the suite with sources hidden, against .so only
-#   make present     staged run for a screen recording
+#   make present     code walkthrough + staged run, for a screen recording
+#   make talk        same, advancing on Enter instead of a timer
 #   make clean       remove every build artefact
 
 PY       := .venv/bin/python
@@ -17,7 +18,7 @@ LIBDIR   := $(shell $(PY) -c "import sysconfig;print(sysconfig.get_config_var('L
 PYVER    := $(shell $(PY) -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 BINARY   := dist/fedxgb-demo
 
-.PHONY: all ext wheel binary standalone install test verify run present clean
+.PHONY: all ext wheel binary standalone install test verify run present talk rehearse clean
 
 all: wheel binary
 
@@ -93,12 +94,16 @@ verify: ext
 run:
 	$(PY) run_demo.py
 
-## Staged, paced run for a screen recording. --pace 1.0 is talk pace (~40s).
+## Staged, paced run for a screen recording: code walkthrough, then the demo.
 present:
 	$(PY) present.py
 
+## Same, but the speaker advances every screen by hand. Best for a live talk.
+talk:
+	$(PY) present.py --step
+
 rehearse:
-	$(PY) present.py --pace 0.3
+	$(PY) present.py --pace 0.3 --code-hold 1
 
 clean:
 	rm -rf build dist dist-wheel dist-standalone *.egg-info .pytest_cache

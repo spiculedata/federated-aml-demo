@@ -66,14 +66,14 @@ def build_feature_plan(
     daily = _daily_account_aggregates(lf)
     baselines = _account_baselines(lf)
 
+    baseline = pl.col("account_mean_amount").clip(lower_bound=1.0)
+    ratio = (pl.col("amount") / baseline).alias("amount_vs_account_mean")
+
     return (
         lf.with_columns(_row_level_expressions())
         .join(daily, on=[_ACCOUNT_KEY, _DAY_KEY], how="left")
         .join(baselines, on=_ACCOUNT_KEY, how="left")
-        .with_columns(
-            (pl.col("amount") / pl.col("account_mean_amount").clip(lower_bound=1.0))
-            .alias("amount_vs_account_mean")
-        )
+        .with_columns(ratio)
         .select(*config.FEATURE_COLUMNS, config.LABEL_COLUMN, *extra_columns)
     )
 

@@ -12,7 +12,10 @@ from dataclasses import dataclass
 
 from rich.align import Align
 from rich.console import Console, Group
+from rich.syntax import Syntax
 from rich.text import Text
+
+from fedxgb.code_tour import Snippet
 
 BAR_WIDTH = 30
 LABEL_WIDTH = 18
@@ -35,6 +38,10 @@ BEAT_LONG = 2.5
 # The trade-off screen is the one people read rather than glance at, so it
 # gets long enough to actually take the numbers in and talk over them.
 BEAT_STUDY = 12.0
+# Code takes the longest to talk through of anything on screen.
+BEAT_CODE = 15.0
+
+CODE_THEME = "monokai"
 ANIMATION_SECONDS = 0.9
 ANIMATION_FRAMES = 24
 
@@ -68,13 +75,27 @@ class ScoreRow:
 class Presentation:
     """Drives the screens. Each method owns the whole screen and then pauses."""
 
-    def __init__(self, console: Console | None = None, pace: float = 1.0):
+    def __init__(
+        self,
+        console: Console | None = None,
+        pace: float = 1.0,
+        step: bool = False,
+    ):
         self.console = console or Console()
         self.pace = pace
+        self.step = step
 
     # --- plumbing ---------------------------------------------------------
 
     def pause(self, beats: float = BEAT_SHORT) -> None:
+        """Hold the current screen.
+
+        In step mode the speaker advances by hand, which matters most on the
+        code slides where explaining takes however long it takes.
+        """
+        if self.step:
+            self.console.input("")
+            return
         time.sleep(beats * self.pace)
 
     def _screen(self, *renderables: object, top_padding: int = 3) -> None:
@@ -136,6 +157,36 @@ class Presentation:
             )
             self.pause(0.5)
         self.pause(BEAT_SHORT)
+
+    def code(self, snippet: Snippet, hold: float = BEAT_CODE) -> None:
+        """One slide of real source, pulled from the file it still lives in."""
+        header = Text("  ")
+        header.append(snippet.stop.headline, style=STYLE_HEADING)
+
+        location = Text("  ")
+        location.append(f"{snippet.stop.path}:{snippet.start_line}", style=STYLE_QUIET)
+
+        listing = Syntax(
+            snippet.code,
+            "python",
+            theme=CODE_THEME,
+            line_numbers=True,
+            start_line=snippet.start_line,
+            word_wrap=False,
+            background_color="default",
+            indent_guides=False,
+        )
+
+        self._screen(
+            header,
+            location,
+            Text(""),
+            listing,
+            Text(""),
+            self._note(snippet.stop.note),
+            top_padding=2,
+        )
+        self.pause(hold)
 
     def _animated_bars(self, heading: str, rows: list[ScoreRow], note: str) -> None:
         """Grow every bar from zero to its value, then hold."""

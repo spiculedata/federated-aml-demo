@@ -96,16 +96,53 @@ it with `xgb.Booster(model_file=...)` and score anywhere.
 ## Recording the demo
 
 ```bash
-make present     # staged, paced run for a screen recording (~40 seconds)
-make rehearse    # same thing at 0.3x pace, for checking changes
+make present     # code walkthrough, then the run (~100 seconds)
+make talk        # same, but every screen advances on Enter
+make rehearse    # 0.3x pace, for checking changes
 ```
+
+### The code walkthrough
+
+The recording opens with four slides of real source, so there is no need to cut
+away to an editor mid-demo:
+
+```
+  THE ONE LINE THAT MUST NOT BE WRONG
+  fedxgb/weights.py:49
+
+  49 def scale_leaf_weights(tree: dict[str, Any], factor: float) -> dict[str, Any]:
+  50     scaled = copy.deepcopy(tree)
+  51     for node, left_child in enumerate(scaled["left_children"]):
+  52         if left_child == _LEAF_SENTINEL:
+  53             scaled["split_conditions"][node] *= factor
+  54             scaled["base_weights"][node] *= factor
+  55     return scaled
+
+  Split thresholds share this array with leaf values. Scale one and the tree lies.
+```
+
+The four stops are the feature plan, the update payload, the leaf scaling, and
+the aggregation — local work, what leaves the building, the dangerous line, and
+the merge.
+
+**The snippets are extracted from the source files at runtime by symbol name,
+never copied into the slide deck.** Line numbers are the real ones, so you can
+point at `weights.py:49` and it will be there. Rename a function and the tour
+raises rather than showing code that no longer exists; tests walk every stop and
+also assert each slide fits inside 78 columns, so a long line cannot quietly
+push the code off the edge of a projector. Docstrings are stripped, because the
+speaker is the narration.
+
+Use `--step` (or `make talk`) on the code slides — explaining takes as long as
+it takes, and a stopwatch is the wrong tool.
 
 `present.py` runs the identical code path as `run_demo.py` and shows the same
 numbers — it only stages them. It computes nothing of its own.
 
-The trade-off comparison holds for 12 seconds by default, because it is the one
-screen people read rather than glance at. Tune it per take with
-`--hold 15`; `--pace` scales every other beat around it.
+The trade-off comparison holds for 12 seconds by default, and each code slide
+for 15, because those are the screens people read rather than glance at. Tune
+them per take with `--hold` and `--code-hold`; `--pace` scales every other beat
+around them. `--no-tour` skips straight to the demo.
 
 It is built for a projector rather than a desk, so it shows one idea per
 screen with large bars and very few numbers visible at once:

@@ -65,3 +65,26 @@ def test_trade_off_hold_is_overridable_per_take(monkeypatch):
     show.trade_off([("Bank", 0.5, 0.3, 0.0, 0.4)], hold=15.0)
 
     assert held == [15.0]
+
+
+def test_step_mode_waits_for_the_speaker_instead_of_a_timer():
+    """On code slides the speaker needs control, not a stopwatch."""
+    import io
+
+    from rich.console import Console
+
+    class StubConsole(Console):
+        def __init__(self):
+            super().__init__(file=io.StringIO())
+            self.prompts = 0
+
+        def input(self, *args, **kwargs):
+            self.prompts += 1
+            return ""
+
+    console = StubConsole()
+    show = presenter.Presentation(console, pace=1.0, step=True)
+
+    show.pause(beats=999.0)
+
+    assert console.prompts == 1

@@ -2,8 +2,9 @@
 """The federated demo, staged for a screen recording.
 
     uv run present.py                # full pace, for a talk
+    uv run present.py --step         # advance every screen by hand
     uv run present.py --pace 0.3     # quick rehearsal
-    uv run present.py --rounds 4     # shorter federation
+    uv run present.py --no-tour      # skip the code walkthrough
 
 Same code path and same numbers as run_demo.py - only the presentation
 differs. Nothing here computes a result.
@@ -16,7 +17,7 @@ import time
 
 from rich.console import Console
 
-from fedxgb import config, evaluation, presenter, server
+from fedxgb import code_tour, config, evaluation, presenter, server
 from fedxgb.bank_node import BankNode
 from fedxgb.presenter import STYLE_FEDERATED, STYLE_SOLO, Presentation, ScoreRow
 from run_demo import ensure_data
@@ -95,14 +96,29 @@ def main() -> None:
         default=presenter.BEAT_STUDY,
         help="seconds to hold the trade-off comparison (default 12)",
     )
+    parser.add_argument(
+        "--code-hold",
+        type=float,
+        default=presenter.BEAT_CODE,
+        help="seconds to hold each code slide (default 15)",
+    )
+    parser.add_argument(
+        "--no-tour", action="store_true", help="skip the code walkthrough"
+    )
+    parser.add_argument(
+        "--step", action="store_true", help="advance every screen on Enter instead of a timer"
+    )
     args = parser.parse_args()
 
     console = Console()
-    show = Presentation(console, pace=args.pace)
+    show = Presentation(console, pace=args.pace, step=args.step)
 
     paths = ensure_data()
 
     show.title()
+    if not args.no_tour:
+        for snippet in code_tour.snippets():
+            show.code(snippet, hold=args.code_hold)
     show.participants(
         [(DISPLAY_NAMES[b], config.BANK_TYPOLOGIES[b]) for b in config.BANK_IDS],
         rows_each=config.ROWS_PER_BANK,
