@@ -32,6 +32,9 @@ STYLE_QUIET = "grey62"
 # Beats, multiplied by --pace. Tuned so a narrator can finish a sentence.
 BEAT_SHORT = 1.2
 BEAT_LONG = 2.5
+# The trade-off screen is the one people read rather than glance at, so it
+# gets long enough to actually take the numbers in and talk over them.
+BEAT_STUDY = 12.0
 ANIMATION_SECONDS = 0.9
 ANIMATION_FRAMES = 24
 
@@ -195,10 +198,15 @@ class Presentation:
             time.sleep(ANIMATION_SECONDS / ANIMATION_FRAMES)
         self.pause(BEAT_LONG)
 
-    def trade_off(self, rows: list[tuple[str, float, float, float, float]]) -> None:
+    def trade_off(
+        self,
+        rows: list[tuple[str, float, float, float, float]],
+        hold: float = BEAT_STUDY,
+    ) -> None:
         """The honest screen: what each bank gives up, and what it gains.
 
         rows: (name, own_alone, own_federated, unseen_alone, unseen_federated)
+        ``hold`` is in beats, so it still scales with --pace for rehearsals.
         """
         header = Text("  ")
         header.append(" " * LABEL_WIDTH)
@@ -224,7 +232,7 @@ class Presentation:
             Text(""),
             self._note("worse at its speciality. far better at everything else."),
         )
-        self.pause(BEAT_LONG)
+        self.pause(hold)
 
     def wire_summary(self, weights_kb: float) -> None:
         rows = [

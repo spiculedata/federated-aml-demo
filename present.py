@@ -16,7 +16,7 @@ import time
 
 from rich.console import Console
 
-from fedxgb import config, evaluation, server
+from fedxgb import config, evaluation, presenter, server
 from fedxgb.bank_node import BankNode
 from fedxgb.presenter import STYLE_FEDERATED, STYLE_SOLO, Presentation, ScoreRow
 from run_demo import ensure_data
@@ -89,6 +89,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rounds", type=int, default=config.NUM_ROUNDS)
     parser.add_argument("--pace", type=float, default=1.0, help="1.0 = talk pace")
+    parser.add_argument(
+        "--hold",
+        type=float,
+        default=presenter.BEAT_STUDY,
+        help="seconds to hold the trade-off comparison (default 12)",
+    )
     args = parser.parse_args()
 
     console = Console()
@@ -140,7 +146,7 @@ def main() -> None:
         solo,
         ScoreRow("FEDERATED", evaluation.overall(federated_detection).rate, STYLE_FEDERATED),
     )
-    show.trade_off(trade_off_rows(nodes, solo_detection, federated_detection))
+    show.trade_off(trade_off_rows(nodes, solo_detection, federated_detection), hold=args.hold)
     show.wire_summary(sum(r.payload_kb for r in history))
 
 

@@ -96,12 +96,16 @@ it with `xgb.Booster(model_file=...)` and score anywhere.
 ## Recording the demo
 
 ```bash
-make present     # staged, paced run for a screen recording (~28 seconds)
+make present     # staged, paced run for a screen recording (~40 seconds)
 make rehearse    # same thing at 0.3x pace, for checking changes
 ```
 
 `present.py` runs the identical code path as `run_demo.py` and shows the same
 numbers — it only stages them. It computes nothing of its own.
+
+The trade-off comparison holds for 12 seconds by default, because it is the one
+screen people read rather than glance at. Tune it per take with
+`--hold 15`; `--pace` scales every other beat around it.
 
 It is built for a projector rather than a desk, so it shows one idea per
 screen with large bars and very few numbers visible at once:

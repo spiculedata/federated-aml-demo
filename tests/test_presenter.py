@@ -35,3 +35,33 @@ def test_every_bar_renders_to_the_same_width():
     widths = {len(presenter.render_bar(f / 20)) for f in range(21)}
 
     assert widths == {presenter.BAR_WIDTH}
+
+
+def test_trade_off_holds_long_enough_to_read(monkeypatch):
+    """The comparison screen must not revert to a glance-length pause."""
+    import io
+
+    from rich.console import Console
+
+    held: list[float] = []
+    show = presenter.Presentation(Console(file=io.StringIO()), pace=1.0)
+    monkeypatch.setattr(show, "pause", held.append)
+
+    show.trade_off([("Bank", 0.5, 0.3, 0.0, 0.4)])
+
+    assert held == [presenter.BEAT_STUDY]
+    assert presenter.BEAT_STUDY >= 10.0
+
+
+def test_trade_off_hold_is_overridable_per_take(monkeypatch):
+    import io
+
+    from rich.console import Console
+
+    held: list[float] = []
+    show = presenter.Presentation(Console(file=io.StringIO()), pace=1.0)
+    monkeypatch.setattr(show, "pause", held.append)
+
+    show.trade_off([("Bank", 0.5, 0.3, 0.0, 0.4)], hold=15.0)
+
+    assert held == [15.0]

@@ -93,7 +93,7 @@ verify: ext
 run:
 	$(PY) run_demo.py
 
-## Staged, paced run for a screen recording. --pace 1.0 is talk pace (~28s).
+## Staged, paced run for a screen recording. --pace 1.0 is talk pace (~40s).
 present:
 	$(PY) present.py
 
