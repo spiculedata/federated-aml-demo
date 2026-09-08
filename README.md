@@ -93,6 +93,53 @@ institution, one vote.
 The output at `artifacts/global_model.json` is a standard XGBoost model — load
 it with `xgb.Booster(model_file=...)` and score anywhere.
 
+## Recording the demo
+
+```bash
+make present     # staged, paced run for a screen recording (~28 seconds)
+make rehearse    # same thing at 0.3x pace, for checking changes
+```
+
+`present.py` runs the identical code path as `run_demo.py` and shows the same
+numbers — it only stages them. It computes nothing of its own.
+
+It is built for a projector rather than a desk, so it shows one idea per
+screen with large bars and very few numbers visible at once:
+
+```
+  ALONE, EACH BANK CATCHES ONE THING
+
+  Northwind Bank    ██████░░░░░░░░░░░░░░░░░░░░░░░░  20.6%
+  Caledonia Trust   ███████░░░░░░░░░░░░░░░░░░░░░░░  23.1%
+  Meridian PCB      █████████░░░░░░░░░░░░░░░░░░░░░  29.2%
+
+  share of all criminal cases caught, within a 2% alert budget
+```
+
+then, after the federation rounds:
+
+```
+  TOGETHER
+
+  Northwind Bank    ██████░░░░░░░░░░░░░░░░░░░░░░░░  20.6%
+  Caledonia Trust   ███████░░░░░░░░░░░░░░░░░░░░░░░  23.1%
+  Meridian PCB      █████████░░░░░░░░░░░░░░░░░░░░░  29.2%
+
+  FEDERATED         █████████████░░░░░░░░░░░░░░░░░  43.6%
+```
+
+Two deliberate choices:
+
+**No learning curve.** The obvious visual is an AUC line climbing across the
+rounds, and it would be a lie by omission — that curve is flat here (see the
+limitations below). The recording is built around the *contrast* between the
+solo models and the federated one, which is where the real result lives.
+
+**The banks train on real threads.** `run_federation(parallel=True)` puts each
+participant on its own thread, so the three progressing at once on screen is
+true rather than implied. XGBoost releases the GIL while boosting, so this is
+genuine overlap: 2.60s sequential versus 1.70s parallel for eight rounds.
+
 ## Packaging
 
 The demo is written as ordinary Python, then compiled with Cython so it can be

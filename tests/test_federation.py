@@ -167,3 +167,36 @@ def test_roc_auc_is_half_when_every_score_ties():
 
 def test_roc_auc_is_undefined_for_a_single_class():
     assert np.isnan(roc_auc(np.array([0, 0, 0]), np.array([0.1, 0.2, 0.3])))
+
+
+def test_parallel_training_gives_the_same_model_as_sequential(nodes, holdout):
+    """Threading the participants must not change the result, only the wall clock."""
+    sequential = server.run_federation(nodes, holdout, num_rounds=3, verbose=False)[-1]
+    threaded = server.run_federation(
+        nodes, holdout, num_rounds=3, verbose=False, parallel=True
+    )[-1]
+
+    assert threaded.total_trees == sequential.total_trees
+    assert threaded.holdout_auc == pytest.approx(sequential.holdout_auc, abs=1e-9)
+
+
+def test_an_observer_sees_every_round_and_every_bank(nodes, holdout):
+    class Recorder:
+        def __init__(self):
+            self.starts, self.updates, self.ends = [], [], []
+
+        def on_round_start(self, round_index, num_rounds):
+            self.starts.append(round_index)
+
+        def on_bank_update(self, update):
+            self.updates.append(update.bank_id)
+
+        def on_round_end(self, result):
+            self.ends.append(result.total_trees)
+
+    recorder = Recorder()
+    server.run_federation(nodes, holdout, num_rounds=2, verbose=False, observer=recorder)
+
+    assert recorder.starts == [1, 2]
+    assert len(recorder.updates) == 2 * len(nodes)
+    assert recorder.ends == [len(nodes) * config.TREES_PER_BANK_PER_ROUND * r for r in (1, 2)]

@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Protocol, Sequence
 
 import numpy as np
 import xgboost as xgb
 
 from fedxgb import aggregator, config, evaluation, features, weights
-from fedxgb.bank_node import BankNode, roc_auc
+from fedxgb.bank_node import BankNode, BankUpdate, roc_auc
 
 _SCHEMA_PROBE_ROWS = 2
 
@@ -26,6 +27,16 @@ def bootstrap_global_model(params: dict[str, Any] | None = None) -> dict[str, An
     )
     seed = xgb.train(dict(params or config.XGB_PARAMS), matrix, num_boost_round=0)
     return weights.empty_like(weights.booster_to_dict(seed))
+
+
+class RoundObserver(Protocol):
+    """Hook for a UI to watch a federation without the server knowing about it."""
+
+    def on_round_start(self, round_index: int, num_rounds: int) -> None: ...
+
+    def on_bank_update(self, update: "BankUpdate") -> None: ...
+
+    def on_round_end(self, result: "RoundResult") -> None: ...
 
 
 @dataclass(frozen=True)
@@ -67,19 +78,57 @@ class HoldoutSet:
         )
 
 
+def _train_all(
+    nodes: Sequence[BankNode],
+    global_model: dict[str, Any],
+    round_index: int,
+    parallel: bool,
+    observer: RoundObserver | None,
+) -> list[BankUpdate]:
+    """One round of local training, optionally on real threads.
+
+    XGBoost releases the GIL while boosting, so ``parallel`` genuinely trains
+    the participants at the same time rather than merely appearing to. Results
+    are returned in node order regardless of completion order, so aggregation
+    stays deterministic.
+    """
+    if not parallel:
+        updates = []
+        for node in nodes:
+            update = node.train_round(global_model, round_index)
+            if observer:
+                observer.on_bank_update(update)
+            updates.append(update)
+        return updates
+
+    with ThreadPoolExecutor(max_workers=len(nodes)) as pool:
+        futures = [pool.submit(node.train_round, global_model, round_index) for node in nodes]
+        updates = []
+        for future in futures:
+            update = future.result()
+            if observer:
+                observer.on_bank_update(update)
+            updates.append(update)
+    return updates
+
+
 def run_federation(
     nodes: Sequence[BankNode],
     holdout: HoldoutSet,
     num_rounds: int = config.NUM_ROUNDS,
     weighted_by_volume: bool = False,
     verbose: bool = True,
+    observer: RoundObserver | None = None,
+    parallel: bool = False,
 ) -> list[RoundResult]:
     """Broadcast, train locally, collect weights, aggregate. Repeat."""
     global_model = bootstrap_global_model(nodes[0].params if nodes else None)
     history: list[RoundResult] = []
 
     for round_index in range(1, num_rounds + 1):
-        updates = [node.train_round(global_model, round_index) for node in nodes]
+        if observer:
+            observer.on_round_start(round_index, num_rounds)
+        updates = _train_all(nodes, global_model, round_index, parallel, observer)
         global_model = aggregator.aggregate_round(global_model, updates, weighted_by_volume)
         result = RoundResult(
             round_index=round_index,
@@ -89,6 +138,8 @@ def run_federation(
             payload_kb=sum(u.payload_kb for u in updates),
         )
         history.append(result)
+        if observer:
+            observer.on_round_end(result)
         if verbose:
             print(aggregator.round_report(round_index, updates))
             print(f"    global: {result.total_trees} trees, holdout AUC {result.holdout_auc:.4f}\n")

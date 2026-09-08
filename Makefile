@@ -6,6 +6,7 @@
 #   make install     build + install the compiled package into the venv
 #   make test        run the suite against the source tree
 #   make verify      run the suite with sources hidden, against .so only
+#   make present     staged run for a screen recording
 #   make clean       remove every build artefact
 
 PY       := .venv/bin/python
@@ -16,7 +17,7 @@ LIBDIR   := $(shell $(PY) -c "import sysconfig;print(sysconfig.get_config_var('L
 PYVER    := $(shell $(PY) -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 BINARY   := dist/fedxgb-demo
 
-.PHONY: all ext wheel binary standalone install test verify run clean
+.PHONY: all ext wheel binary standalone install test verify run present clean
 
 all: wheel binary
 
@@ -91,6 +92,13 @@ verify: ext
 
 run:
 	$(PY) run_demo.py
+
+## Staged, paced run for a screen recording. --pace 1.0 is talk pace (~28s).
+present:
+	$(PY) present.py
+
+rehearse:
+	$(PY) present.py --pace 0.3
 
 clean:
 	rm -rf build dist dist-wheel dist-standalone *.egg-info .pytest_cache
