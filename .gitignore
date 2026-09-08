@@ -1,0 +1,19 @@
+# Build artefacts
+build/
+dist/
+dist-wheel/
+dist-standalone/
+*.egg-info/
+*.so
+*.c
+
+# Generated demo data and models
+data/
+artifacts/
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+.coverage
+.DS_Store
