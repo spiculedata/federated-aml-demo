@@ -81,3 +81,56 @@ def test_table_includes_an_all_cases_column():
     rows = {"solo": [evaluation.TypologyRecall("a", 10, 5)]}
 
     assert "ALL CASES" in evaluation.format_detection_table(rows, budget=0.02)
+
+
+def _recalls(**by_typology) -> list[evaluation.TypologyRecall]:
+    return [
+        evaluation.TypologyRecall(name, cases, detected)
+        for name, (cases, detected) in by_typology.items()
+    ]
+
+
+def test_comparison_splits_the_banks_own_typology_from_the_rest():
+    alone = _recalls(cross_border=(100, 85), structuring=(100, 1), card_not_present=(100, 2))
+    federated = _recalls(cross_border=(100, 49), structuring=(100, 38), card_not_present=(100, 42))
+
+    result = evaluation.compare_models("Meridian", "cross_border", alone, federated)
+
+    assert result.own_alone == pytest.approx(0.85)
+    assert result.own_federated == pytest.approx(0.49)
+    assert result.unseen_alone == pytest.approx(0.015)
+    assert result.unseen_federated == pytest.approx(0.40)
+
+
+def test_comparison_surfaces_a_regression_on_the_specialist_typology():
+    """Joining costs a bank accuracy on the thing it was already good at."""
+    alone = _recalls(cross_border=(100, 85), structuring=(100, 0))
+    federated = _recalls(cross_border=(100, 49), structuring=(100, 38))
+
+    result = evaluation.compare_models("Meridian", "cross_border", alone, federated)
+
+    assert result.own_delta < 0
+    assert result.unseen_delta > 0
+    assert result.overall_delta > 0
+
+
+def test_overall_delta_is_the_headline_and_stays_positive():
+    alone = _recalls(a=(100, 60), b=(100, 0), c=(100, 0))
+    federated = _recalls(a=(100, 40), b=(100, 40), c=(100, 40))
+
+    result = evaluation.compare_models("Bank", "a", alone, federated)
+
+    assert result.overall_alone == pytest.approx(0.2)
+    assert result.overall_federated == pytest.approx(0.4)
+
+
+def test_comparison_table_shows_before_and_after_for_each_bank():
+    alone = _recalls(a=(100, 60), b=(100, 0))
+    federated = _recalls(a=(100, 40), b=(100, 40))
+    rows = [evaluation.compare_models("Bank One", "a", alone, federated)]
+
+    table = evaluation.format_comparison_table(rows)
+
+    assert "Bank One" in table
+    assert "60.0% -> 40.0%" in table
+    assert "its own typology" in table

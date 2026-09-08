@@ -65,6 +65,85 @@ def overall(recalls: list[TypologyRecall]) -> TypologyRecall:
     )
 
 
+@dataclass(frozen=True)
+class ModelComparison:
+    """One bank, measured against the federated model on the same hold-out.
+
+    Split three ways because the headline hides the trade-off: a bank gives up
+    accuracy on the typology it specialises in, and gains on the ones it has
+    never seen.
+    """
+
+    label: str
+    own_typology: str
+    own_alone: float
+    own_federated: float
+    unseen_alone: float
+    unseen_federated: float
+    overall_alone: float
+    overall_federated: float
+
+    @property
+    def own_delta(self) -> float:
+        return self.own_federated - self.own_alone
+
+    @property
+    def unseen_delta(self) -> float:
+        return self.unseen_federated - self.unseen_alone
+
+    @property
+    def overall_delta(self) -> float:
+        return self.overall_federated - self.overall_alone
+
+
+def _pooled(recalls: list[TypologyRecall], typologies: set[str]) -> float:
+    """Detection rate across a chosen subset of typologies."""
+    chosen = [r for r in recalls if r.typology in typologies]
+    return overall(chosen).rate if chosen else float("nan")
+
+
+def compare_models(
+    label: str,
+    own_typology: str,
+    alone: list[TypologyRecall],
+    federated: list[TypologyRecall],
+) -> ModelComparison:
+    """Contrast one bank's solo model with the federated model it helped build."""
+    every = {r.typology for r in alone} | {r.typology for r in federated}
+    unseen = every - {own_typology}
+    return ModelComparison(
+        label=label,
+        own_typology=own_typology,
+        own_alone=_pooled(alone, {own_typology}),
+        own_federated=_pooled(federated, {own_typology}),
+        unseen_alone=_pooled(alone, unseen),
+        unseen_federated=_pooled(federated, unseen),
+        overall_alone=overall(alone).rate,
+        overall_federated=overall(federated).rate,
+    )
+
+
+def _arrow(before: float, after: float) -> str:
+    return f"{before:>5.1%} -> {after:>5.1%}"
+
+
+def format_comparison_table(comparisons: list[ModelComparison]) -> str:
+    """The trade-off each participant actually makes by joining."""
+    width = max((len(c.label) for c in comparisons), default=0) + 2
+    lines = [
+        f"  {'':<{width}}{'its own typology':>22}{'the ones it never saw':>26}{'overall':>20}",
+        "  " + "-" * (width + 68),
+    ]
+    for c in comparisons:
+        lines.append(
+            f"  {c.label:<{width}}"
+            f"{_arrow(c.own_alone, c.own_federated):>22}"
+            f"{_arrow(c.unseen_alone, c.unseen_federated):>26}"
+            f"{_arrow(c.overall_alone, c.overall_federated):>20}"
+        )
+    return "\n".join(lines)
+
+
 def format_detection_table(rows: dict[str, list[TypologyRecall]], budget: float) -> str:
     """Model-by-typology detection rates as an aligned text table."""
     typologies = sorted({r.typology for rs in rows.values() for r in rs}) + [_ALL_TYPOLOGIES]

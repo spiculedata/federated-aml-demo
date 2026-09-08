@@ -128,6 +128,28 @@ then, after the federation rounds:
   FEDERATED         █████████████░░░░░░░░░░░░░░░░░  43.6%
 ```
 
+The final screens answer the question a risk officer asks straight away —
+what did federating actually cost us?
+
+```
+  WHAT EACH BANK TRADES
+
+                      its own typology   the ones it never saw
+
+  Northwind Bank         57% → 37%              1% → 45%
+  Caledonia Trust        69% → 32%              0% → 48%
+  Meridian PCB           84% → 59%              2% → 34%
+
+  worse at its speciality. far better at everything else.
+```
+
+**Every participant gets worse at the typology it specialises in.** Meridian
+alone catches 84% of cross-border; after federating it catches 59%. This is
+not a modelling failure — it is a fixed 2% alert budget being spread across
+three typologies instead of concentrated on one. Overall detection still
+roughly doubles for all three banks, which is the trade the federation is
+actually offering. `run_demo.py` prints the same comparison as a table.
+
 Two deliberate choices:
 
 **No learning curve.** The obvious visual is an AUC line climbing across the

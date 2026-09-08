@@ -77,11 +77,13 @@ def main() -> None:
     detection: dict[str, list[evaluation.TypologyRecall]] = {}
 
     _heading("BASELINE - EACH BANK TRAINING ALONE")
+    solo_detection: dict[str, list[evaluation.TypologyRecall]] = {}
     for node in nodes:
         model = server.train_local_only(node, tree_budget)
         label = f"{node.bank_id} (solo)"
         scoreboard[label] = holdout.auc(model)
         detection[label] = holdout.detection(model)
+        solo_detection[node.bank_id] = detection[label]
         print(f"  {label:<34} {tree_budget} trees, holdout AUC {scoreboard[label]:.4f}")
 
     _heading(f"FEDERATED TRAINING - {args.rounds} ROUNDS")
@@ -108,6 +110,28 @@ def main() -> None:
 
     print()
     print(evaluation.format_detection_table(detection, config.ALERT_BUDGET))
+
+    federated_detection = detection["FEDERATED (weights only)"]
+    comparisons = [
+        evaluation.compare_models(
+            node.bank_id,
+            config.BANK_TYPOLOGIES[node.bank_id],
+            solo_detection[node.bank_id],
+            federated_detection,
+        )
+        for node in nodes
+    ]
+
+    _heading("WHAT EACH BANK TRADES BY JOINING")
+    print(evaluation.format_comparison_table(comparisons))
+    worst = min(comparisons, key=lambda c: c.own_delta)
+    print(
+        f"\n  Every participant is WORSE at its own speciality after federating"
+        f"\n  ({worst.label} loses "
+        f"{abs(worst.own_delta):.1%} on {worst.own_typology.replace('_', '-')}), because a fixed"
+        f"\n  2% alert budget now has to cover three typologies instead of one."
+        f"\n  Overall detection still roughly doubles for all three."
+    )
 
     path = server.save_global_model(final.global_model)
     _heading("WHAT ACTUALLY CROSSED THE WIRE")

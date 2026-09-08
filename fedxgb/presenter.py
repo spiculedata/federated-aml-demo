@@ -16,6 +16,8 @@ from rich.text import Text
 
 BAR_WIDTH = 30
 LABEL_WIDTH = 18
+OWN_COL_WIDTH = 20
+UNSEEN_COL_WIDTH = 24
 
 FILLED_BLOCK = "█"
 EMPTY_BLOCK = "░"
@@ -191,6 +193,37 @@ class Presentation:
                 bar_row(federated.label, federated.fraction * progress, STYLE_FEDERATED),
             )
             time.sleep(ANIMATION_SECONDS / ANIMATION_FRAMES)
+        self.pause(BEAT_LONG)
+
+    def trade_off(self, rows: list[tuple[str, float, float, float, float]]) -> None:
+        """The honest screen: what each bank gives up, and what it gains.
+
+        rows: (name, own_alone, own_federated, unseen_alone, unseen_federated)
+        """
+        header = Text("  ")
+        header.append(" " * LABEL_WIDTH)
+        header.append(f"{'its own typology':^{OWN_COL_WIDTH}}", style=STYLE_QUIET)
+        header.append(f"{'the ones it never saw':^{UNSEEN_COL_WIDTH}}", style=STYLE_QUIET)
+
+        lines: list[Text] = []
+        for name, own_before, own_after, unseen_before, unseen_after in rows:
+            own = f"{own_before:.0%} → {own_after:.0%}"
+            unseen = f"{unseen_before:.0%} → {unseen_after:.0%}"
+            row = Text("  ")
+            row.append(f"{name:<{LABEL_WIDTH}}", style=STYLE_BANK)
+            row.append(f"{own:^{OWN_COL_WIDTH}}", style=STYLE_ALERT)
+            row.append(f"{unseen:^{UNSEEN_COL_WIDTH}}", style=STYLE_FEDERATED)
+            lines.append(row)
+
+        self._screen(
+            self._heading("WHAT EACH BANK TRADES"),
+            Text(""),
+            header,
+            Text(""),
+            *lines,
+            Text(""),
+            self._note("worse at its speciality. far better at everything else."),
+        )
         self.pause(BEAT_LONG)
 
     def wire_summary(self, weights_kb: float) -> None:

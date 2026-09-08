@@ -16,7 +16,7 @@ import time
 
 from rich.console import Console
 
-from fedxgb import config, evaluation, presenter, server
+from fedxgb import config, evaluation, server
 from fedxgb.bank_node import BankNode
 from fedxgb.presenter import STYLE_FEDERATED, STYLE_SOLO, Presentation, ScoreRow
 from run_demo import ensure_data
@@ -59,9 +59,30 @@ class LiveRoundObserver:
         self.show.federating(self.round_index, self.num_rounds, rows, trees)
 
 
-def overall_detection(holdout: server.HoldoutSet, model: dict) -> float:
-    """Share of all criminal cases caught within the alert budget."""
-    return evaluation.overall(holdout.detection(model)).rate
+def trade_off_rows(
+    nodes: list[BankNode],
+    solo_detection: dict[str, list[evaluation.TypologyRecall]],
+    federated_detection: list[evaluation.TypologyRecall],
+) -> list[tuple[str, float, float, float, float]]:
+    """Per bank: what it gives up on its speciality, what it gains elsewhere."""
+    rows = []
+    for node in nodes:
+        comparison = evaluation.compare_models(
+            DISPLAY_NAMES[node.bank_id],
+            config.BANK_TYPOLOGIES[node.bank_id],
+            solo_detection[node.bank_id],
+            federated_detection,
+        )
+        rows.append(
+            (
+                comparison.label,
+                comparison.own_alone,
+                comparison.own_federated,
+                comparison.unseen_alone,
+                comparison.unseen_federated,
+            )
+        )
+    return rows
 
 
 def main() -> None:
@@ -94,14 +115,18 @@ def main() -> None:
     holdout = server.HoldoutSet(paths["holdout"])
     tree_budget = args.rounds * config.TREES_PER_BANK_PER_ROUND * len(nodes)
 
-    solo = [
-        ScoreRow(
-            DISPLAY_NAMES[node.bank_id],
-            overall_detection(holdout, server.train_local_only(node, tree_budget)),
-            STYLE_SOLO,
+    solo: list[ScoreRow] = []
+    solo_detection: dict[str, list[evaluation.TypologyRecall]] = {}
+    for node in nodes:
+        model = server.train_local_only(node, tree_budget)
+        solo_detection[node.bank_id] = holdout.detection(model)
+        solo.append(
+            ScoreRow(
+                DISPLAY_NAMES[node.bank_id],
+                evaluation.overall(solo_detection[node.bank_id]).rate,
+                STYLE_SOLO,
+            )
         )
-        for node in nodes
-    ]
     show.solo_results(solo)
 
     observer = LiveRoundObserver(show, args.rounds)
@@ -110,10 +135,12 @@ def main() -> None:
     )
     final = history[-1]
 
+    federated_detection = holdout.detection(final.global_model)
     show.reveal(
         solo,
-        ScoreRow("FEDERATED", overall_detection(holdout, final.global_model), STYLE_FEDERATED),
+        ScoreRow("FEDERATED", evaluation.overall(federated_detection).rate, STYLE_FEDERATED),
     )
+    show.trade_off(trade_off_rows(nodes, solo_detection, federated_detection))
     show.wire_summary(sum(r.payload_kb for r in history))
 
 
