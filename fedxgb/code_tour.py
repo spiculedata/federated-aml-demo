@@ -15,6 +15,29 @@ from pathlib import Path
 # Widest line a code slide may contain, so it survives projector zoom.
 MAX_CODE_WIDTH = 78
 
+# Slides are read from the checkout this package was imported from, so the
+# tour works from any working directory rather than only the repo root.
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+
+
+class SourceUnavailable(RuntimeError):
+    """The .py sources are not on disk, so no code slide can be shown.
+
+    Expected when running from a Cython-compiled install: the wheel ships
+    only .so files by design, so there is no source to read.
+    """
+
+
+def resolve(path: str) -> Path:
+    """Find a source file relative to the checkout, falling back to the cwd."""
+    packaged = _PACKAGE_ROOT / path
+    return packaged if packaged.exists() else Path(path)
+
+
+def sources_available() -> bool:
+    """Whether every tour stop's source file can actually be read."""
+    return all(resolve(stop.path).exists() for stop in TOUR)
+
 
 @dataclass(frozen=True)
 class TourStop:
@@ -65,7 +88,13 @@ def extract(stop: TourStop, strip_docstring: bool = True) -> Snippet:
     The docstring is dropped by default: the speaker narrates the slide, so
     on-screen prose competes with them and costs vertical space.
     """
-    source = Path(stop.path).read_text(encoding="utf-8")
+    location = resolve(stop.path)
+    if not location.exists():
+        raise SourceUnavailable(
+            f"{stop.path} is not on disk. The code tour needs the Python sources, "
+            "which a compiled install does not ship."
+        )
+    source = location.read_text(encoding="utf-8")
     lines = source.splitlines()
     node = _definition(ast.parse(source), stop.symbol)
 

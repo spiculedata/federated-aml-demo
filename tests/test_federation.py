@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import xgboost as xgb
 
-from fedxgb import config, data_gen, server, weights
+from fedxgb import config, data_gen, features, server, weights
 from fedxgb.bank_node import BankNode, roc_auc
 
 _TINY_ROWS = 12_000
@@ -200,3 +200,27 @@ def test_an_observer_sees_every_round_and_every_bank(nodes, holdout):
     assert recorder.starts == [1, 2]
     assert len(recorder.updates) == 2 * len(nodes)
     assert recorder.ends == [len(nodes) * config.TREES_PER_BANK_PER_ROUND * r for r in (1, 2)]
+
+
+def test_the_feature_pipeline_is_reproducible(ledgers):
+    """Streaming joins do not preserve row order, and XGBoost is order-sensitive."""
+    plan = lambda: features.build_feature_plan(ledgers["northwind_bank"])
+
+    first = features.collect_streaming(plan())
+    second = features.collect_streaming(plan())
+
+    assert first.equals(second)
+
+
+def test_training_twice_on_the_same_ledger_gives_the_same_model(ledgers, holdout):
+    """Without a deterministic row order this differed by ~0.03 AUC per run."""
+    seed = server.bootstrap_global_model(_TINY_PARAMS)
+
+    aucs = []
+    for _ in range(2):
+        node = BankNode("northwind_bank", ledgers["northwind_bank"], _TINY_PARAMS)
+        node.load_local_data()
+        update = node.train_round(seed, round_index=1, num_trees=6)
+        aucs.append(holdout.auc(weights.append_trees(seed, update.trees)))
+
+    assert aucs[0] == aucs[1]

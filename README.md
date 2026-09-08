@@ -96,10 +96,23 @@ it with `xgb.Booster(model_file=...)` and score anywhere.
 ## Recording the demo
 
 ```bash
-make present     # code walkthrough, then the run (~100 seconds)
-make talk        # same, but every screen advances on Enter
-make rehearse    # 0.3x pace, for checking changes
+make present            # code walkthrough, then the run (~100 seconds)
+make talk               # same, but every screen advances on Enter
+make present-compiled   # the same run from native extensions, fast (~10s)
+make parity             # prove both produce byte-identical output
+make rehearse           # 0.3x pace, for checking changes
 ```
+
+`make present` and `make present-compiled` are a before/after pair. The first
+runs the Python sources at talk pace with the code walkthrough; the second
+rebuilds every module as a native `.so` and replays the same demo with no tour
+and no pauses. In-place extensions take import precedence over the `.py` beside
+them, so the sources stay readable for the code tour while every module
+executes compiled. `make present` deletes any stray `.so` first, so the two
+targets can never be confused for one another.
+
+`make parity` runs the demo both ways and diffs the output — it must be
+identical, and it is.
 
 ### The code walkthrough
 
@@ -348,6 +361,27 @@ run_demo.py            the narrated end-to-end run
 setup.py               Cython build: compiled-only wheel, generated C kept out
 Makefile               wheel / binary / verify / clean
 ```
+
+## Reproducibility
+
+Every run produces the same numbers. That took two fixes, both worth knowing
+about if you build on this:
+
+**Streaming joins do not preserve row order, and XGBoost is order-sensitive.**
+The same rows in a different order trained models differing by ~0.03 AUC — more
+than several of the effects this demo is trying to show. Setting `subsample=1.0`
+does *not* fix it; histogram construction is order-sensitive too. The feature
+plan now sorts on every selected column, which costs nothing measurable. It
+sorts on the label as well as the features, because a lookalike and a real case
+can share all 14 feature values and differ only in the label.
+
+**Polars sums group-by aggregates in parallel**, so the last bit of a mean or a
+sum varies between runs. The derived floats are rounded — money to pennies, the
+ratio to six places, both far below any signal the model uses — which makes the
+pipeline bit-reproducible rather than merely close.
+
+Tests assert both properties, and `make parity` checks the whole demo end to
+end.
 
 ## Honest limitations
 

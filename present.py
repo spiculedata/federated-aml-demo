@@ -124,8 +124,14 @@ def main() -> None:
 
     show.title()
     if not args.no_tour:
-        for snippet in code_tour.snippets():
-            show.code(snippet, hold=args.code_hold)
+        if code_tour.sources_available():
+            for snippet in code_tour.snippets():
+                show.code(snippet, hold=args.code_hold)
+        else:
+            console.print(
+                "[yellow]Skipping the code tour: Python sources are not on disk "
+                "(compiled install).[/yellow]"
+            )
     show.participants(
         [(DISPLAY_NAMES[b], config.BANK_TYPOLOGIES[b]) for b in config.BANK_IDS],
         rows_each=config.ROWS_PER_BANK,

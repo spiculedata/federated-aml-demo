@@ -14,19 +14,26 @@ from fedxgb import config
 _ACCOUNT_KEY = "account_id"
 _DAY_KEY = "event_date"
 
+# Polars sums group-by aggregates in parallel, so the summation order - and
+# therefore the last bit of the result - varies between runs. Rounding the
+# derived floats makes the pipeline bit-reproducible. Money goes to pennies
+# and the ratio to six places, both far below any signal the model uses.
+_MONEY_DP = 2
+_RATIO_DP = 6
+
 
 def _daily_account_aggregates(lf: pl.LazyFrame) -> pl.LazyFrame:
     """Velocity signals: how busy was this account on this day?"""
     return lf.group_by(_ACCOUNT_KEY, _DAY_KEY).agg(
         pl.len().alias("daily_txn_count"),
-        pl.col("amount").sum().alias("daily_amount_total"),
+        pl.col("amount").sum().round(_MONEY_DP).alias("daily_amount_total"),
     )
 
 
 def _account_baselines(lf: pl.LazyFrame) -> pl.LazyFrame:
     """Behavioural baseline: what does normal look like for this account?"""
     return lf.group_by(_ACCOUNT_KEY).agg(
-        pl.col("amount").mean().alias("account_mean_amount"),
+        pl.col("amount").mean().round(_RATIO_DP).alias("account_mean_amount"),
     )
 
 
@@ -67,14 +74,22 @@ def build_feature_plan(
     baselines = _account_baselines(lf)
 
     baseline = pl.col("account_mean_amount").clip(lower_bound=1.0)
-    ratio = (pl.col("amount") / baseline).alias("amount_vs_account_mean")
+    scaled = (pl.col("amount") / baseline).round(_RATIO_DP)
+    ratio = scaled.alias("amount_vs_account_mean")
+    columns = [*config.FEATURE_COLUMNS, config.LABEL_COLUMN, *extra_columns]
 
     return (
         lf.with_columns(_row_level_expressions())
         .join(daily, on=[_ACCOUNT_KEY, _DAY_KEY], how="left")
         .join(baselines, on=_ACCOUNT_KEY, how="left")
         .with_columns(ratio)
-        .select(*config.FEATURE_COLUMNS, config.LABEL_COLUMN, *extra_columns)
+        .select(*columns)
+        # Streaming group-bys and joins do not preserve row order, and
+        # XGBoost is order-sensitive: the same rows in a different order
+        # train a measurably different model. Sorting on every column, not
+        # just the features, gives a total order - a lookalike and a real
+        # case can share all 14 feature values and differ only in the label.
+        .sort(by=columns)
     )
 
 

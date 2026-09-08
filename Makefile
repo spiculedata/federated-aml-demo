@@ -8,6 +8,8 @@
 #   make verify      run the suite with sources hidden, against .so only
 #   make present     code walkthrough + staged run, for a screen recording
 #   make talk        same, advancing on Enter instead of a timer
+#   make present-compiled  the same run from native extensions, fast (no tour)
+#   make parity      prove interpreted and compiled produce identical results
 #   make clean       remove every build artefact
 
 PY       := .venv/bin/python
@@ -18,7 +20,7 @@ LIBDIR   := $(shell $(PY) -c "import sysconfig;print(sysconfig.get_config_var('L
 PYVER    := $(shell $(PY) -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 BINARY   := dist/fedxgb-demo
 
-.PHONY: all ext wheel binary standalone install test verify run present talk rehearse clean
+.PHONY: all ext wheel binary standalone install test verify run present talk rehearse present-compiled parity no-ext clean
 
 all: wheel binary
 
@@ -77,7 +79,21 @@ standalone: install
 	@grep -ho "fedxgb/[^'\"]*" build/pyinstaller/fedxgb-standalone/*.toc | sort -u
 	@ls -lh dist-standalone/fedxgb-standalone
 
-test:
+## Same demo, run interpreted and then compiled, with the outputs diffed.
+## Timing lines are normalised - everything else must match exactly.
+parity:
+	@rm -f fedxgb/*.so
+	@$(PY) run_demo.py | sed -E 's/[0-9]+\.[0-9]+s/TIMEs/g' > build/parity-python.txt
+	@$(MAKE) --no-print-directory ext >/dev/null
+	@$(PY) run_demo.py | sed -E 's/[0-9]+\.[0-9]+s/TIMEs/g' > build/parity-cython.txt
+	@if diff -q build/parity-python.txt build/parity-cython.txt >/dev/null; then \
+		echo "PARITY OK - interpreted and compiled outputs are identical"; \
+	else \
+		echo "PARITY FAILED"; diff build/parity-python.txt build/parity-cython.txt | head -20; \
+		exit 1; \
+	fi
+
+test: no-ext
 	$(PY) -m pytest tests -q
 
 ## Prove the extensions really work: hide the sources, then run the suite.
@@ -94,9 +110,27 @@ verify: ext
 run:
 	$(PY) run_demo.py
 
+## Remove in-place extensions so the .py sources are definitely what runs.
+## Without this a leftover .so silently shadows the source it was built from.
+no-ext:
+	@rm -f fedxgb/*.so
+
 ## Staged, paced run for a screen recording: code walkthrough, then the demo.
-present:
+present: no-ext
 	$(PY) present.py
+
+## The "after" half of a before/after: same demo, same numbers, run from
+## native extensions - no code tour and no talk-pace pauses.
+## In-place .so files take import precedence over the .py beside them.
+CPACE ?= 0.15
+CHOLD ?= 5
+present-compiled: ext
+	@echo
+	@$(PY) -c "import fedxgb.server as s, fedxgb.weights as w, fedxgb.aggregator as a; \
+		import fedxgb.features as f; print('running from compiled extensions:'); \
+		[print('   ', m.__name__, '->', m.__file__.split('/')[-1]) for m in (s, w, a, f)]"
+	@echo
+	$(PY) present.py --no-tour --pace $(CPACE) --hold $(CHOLD)
 
 ## Same, but the speaker advances every screen by hand. Best for a live talk.
 talk:
