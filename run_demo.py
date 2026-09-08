@@ -78,12 +78,14 @@ def main() -> None:
 
     _heading("BASELINE - EACH BANK TRAINING ALONE")
     solo_detection: dict[str, list[evaluation.TypologyRecall]] = {}
+    solo_scores: dict[str, "np.ndarray"] = {}
     for node in nodes:
         model = server.train_local_only(node, tree_budget)
         label = f"{node.bank_id} (solo)"
         scoreboard[label] = holdout.auc(model)
         detection[label] = holdout.detection(model)
         solo_detection[node.bank_id] = detection[label]
+        solo_scores[node.bank_id] = holdout.scores(model)
         print(f"  {label:<34} {tree_budget} trees, holdout AUC {scoreboard[label]:.4f}")
 
     _heading(f"FEDERATED TRAINING - {args.rounds} ROUNDS")
@@ -111,26 +113,45 @@ def main() -> None:
     print()
     print(evaluation.format_detection_table(detection, config.ALERT_BUDGET))
 
-    federated_detection = detection["FEDERATED (weights only)"]
-    comparisons = [
-        evaluation.compare_models(
+    federated_scores = holdout.scores(final.global_model)
+    deployments = [
+        evaluation.compare_deployment(
             node.bank_id,
             config.BANK_TYPOLOGIES[node.bank_id],
-            solo_detection[node.bank_id],
-            federated_detection,
+            solo_scores[node.bank_id],
+            federated_scores,
+            holdout.labels,
+            holdout.typologies,
         )
         for node in nodes
     ]
 
-    _heading("WHAT EACH BANK TRADES BY JOINING")
-    print(evaluation.format_comparison_table(comparisons))
-    worst = min(comparisons, key=lambda c: c.own_delta)
+    _heading("WHAT EACH BANK GAINS BY JOINING")
+    print(evaluation.format_deployment_table(deployments))
     print(
-        f"\n  Every participant is WORSE at its own speciality after federating"
-        f"\n  ({worst.label} loses "
-        f"{abs(worst.own_delta):.1%} on {worst.own_typology.replace('_', '-')}), because a fixed"
-        f"\n  2% alert budget now has to cover three typologies instead of one."
-        f"\n  Overall detection still roughly doubles for all three."
+        "\n  Each bank keeps its own model and reviews the federated queue alongside"
+        "\n  it, which is how a federation is actually deployed. Nothing it already"
+        "\n  caught is lost - the cost is alert volume, not accuracy."
+    )
+
+    _heading("FOOTNOTE - IF A BANK REPLACED ITS MODEL INSTEAD")
+    replacements = [
+        evaluation.compare_models(
+            node.bank_id,
+            config.BANK_TYPOLOGIES[node.bank_id],
+            solo_detection[node.bank_id],
+            detection["FEDERATED (weights only)"],
+        )
+        for node in nodes
+    ]
+    print(evaluation.format_comparison_table(replacements))
+    worst = min(replacements, key=lambda c: c.own_delta)
+    print(
+        f"\n  Switching the local model off costs each bank accuracy on its own"
+        f"\n  speciality ({worst.label} loses {abs(worst.own_delta):.1%} on "
+        f"{worst.own_typology.replace('_', '-')}), because one"
+        f"\n  alert budget now has to cover three typologies instead of one. Adding"
+        f"\n  the queue rather than swapping the model avoids this entirely."
     )
 
     path = server.save_global_model(final.global_model)

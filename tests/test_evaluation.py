@@ -134,3 +134,77 @@ def test_comparison_table_shows_before_and_after_for_each_bank():
     assert "Bank One" in table
     assert "60.0% -> 40.0%" in table
     assert "its own typology" in table
+
+
+def _two_model_scores():
+    """A specialist that only sees typology 'a', and a generalist that sees both."""
+    labels = np.array([1] * 20 + [0] * 180)
+    typologies = np.array(["a"] * 10 + ["b"] * 10 + ["legitimate"] * 180)
+    local = np.concatenate([np.linspace(0.9, 1.0, 10), np.zeros(10), np.linspace(0, 0.5, 180)])
+    federated = np.concatenate(
+        [np.linspace(0.4, 0.5, 10), np.linspace(0.9, 1.0, 10), np.linspace(0, 0.3, 180)]
+    )
+    return local, federated, labels, typologies
+
+
+def test_adding_a_queue_never_loses_a_case_the_bank_already_caught():
+    """The central claim of the deployment framing, asserted rather than asserted."""
+    local, federated, labels, typologies = _two_model_scores()
+
+    result = evaluation.compare_deployment(
+        "Bank", "a", local, federated, labels, typologies, budget=0.1
+    )
+
+    assert not result.has_regression
+    assert result.own_combined >= result.own_alone
+
+
+def test_the_federated_queue_finds_typologies_the_bank_was_blind_to():
+    local, federated, labels, typologies = _two_model_scores()
+
+    result = evaluation.compare_deployment(
+        "Bank", "a", local, federated, labels, typologies, budget=0.1
+    )
+
+    assert result.unseen_alone == pytest.approx(0.0)
+    assert result.unseen_combined > 0.5
+    assert result.overall_combined > result.overall_alone
+
+
+def test_the_cost_of_the_second_queue_is_alert_volume():
+    local, federated, labels, typologies = _two_model_scores()
+
+    result = evaluation.compare_deployment(
+        "Bank", "a", local, federated, labels, typologies, budget=0.1
+    )
+
+    assert result.alert_share_combined > result.alert_share_alone
+    assert result.alert_share_combined <= 2 * result.alert_share_alone
+
+
+def test_a_regression_is_detected_when_one_exists():
+    """has_regression must actually be capable of returning True."""
+    result = evaluation.DeploymentComparison(
+        label="Bank",
+        own_typology="a",
+        alone=[evaluation.TypologyRecall("a", 10, 8)],
+        combined=[evaluation.TypologyRecall("a", 10, 5)],
+        alert_share_alone=0.02,
+        alert_share_combined=0.03,
+    )
+
+    assert result.has_regression
+
+
+def test_deployment_table_reports_the_alert_volume_cost():
+    local, federated, labels, typologies = _two_model_scores()
+    rows = [
+        evaluation.compare_deployment(
+            "Bank One", "a", local, federated, labels, typologies, budget=0.1
+        )
+    ]
+
+    table = evaluation.format_deployment_table(rows)
+
+    assert "alert volume reviewed" in table
+    assert "all cases" in table

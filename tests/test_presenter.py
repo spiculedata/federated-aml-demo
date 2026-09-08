@@ -47,7 +47,7 @@ def test_trade_off_holds_long_enough_to_read(monkeypatch):
     show = presenter.Presentation(Console(file=io.StringIO()), pace=1.0)
     monkeypatch.setattr(show, "pause", held.append)
 
-    show.trade_off([("Bank", 0.5, 0.3, 0.0, 0.4)])
+    show.trade_off([("Bank", 0.5, 0.5, 0.0, 0.4, 0.2, 0.45)])
 
     assert held == [presenter.BEAT_STUDY]
     assert presenter.BEAT_STUDY >= 10.0
@@ -62,7 +62,7 @@ def test_trade_off_hold_is_overridable_per_take(monkeypatch):
     show = presenter.Presentation(Console(file=io.StringIO()), pace=1.0)
     monkeypatch.setattr(show, "pause", held.append)
 
-    show.trade_off([("Bank", 0.5, 0.3, 0.0, 0.4)], hold=15.0)
+    show.trade_off([("Bank", 0.5, 0.5, 0.0, 0.4, 0.2, 0.45)], hold=15.0)
 
     assert held == [15.0]
 

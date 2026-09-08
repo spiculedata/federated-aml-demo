@@ -251,37 +251,40 @@ class Presentation:
 
     def trade_off(
         self,
-        rows: list[tuple[str, float, float, float, float]],
+        rows: list[tuple[str, float, float, float, float, float, float]],
         hold: float = BEAT_STUDY,
     ) -> None:
-        """The honest screen: what each bank gives up, and what it gains.
+        """What each bank gains by adding the federated queue to its own.
 
-        rows: (name, own_alone, own_federated, unseen_alone, unseen_federated)
-        ``hold`` is in beats, so it still scales with --pace for rehearsals.
+        rows: (name, own_before, own_after, unseen_before, unseen_after,
+        all_before, all_after). ``hold`` is in beats, so it still scales
+        with --pace for rehearsals.
         """
         header = Text("  ")
         header.append(" " * LABEL_WIDTH)
         header.append(f"{'its own typology':^{OWN_COL_WIDTH}}", style=STYLE_QUIET)
         header.append(f"{'the ones it never saw':^{UNSEEN_COL_WIDTH}}", style=STYLE_QUIET)
+        header.append(f"{'all cases':^{OWN_COL_WIDTH}}", style=STYLE_QUIET)
 
         lines: list[Text] = []
-        for name, own_before, own_after, unseen_before, unseen_after in rows:
-            own = f"{own_before:.0%} → {own_after:.0%}"
-            unseen = f"{unseen_before:.0%} → {unseen_after:.0%}"
+        for name, own_b, own_a, unseen_b, unseen_a, all_b, all_a in rows:
             row = Text("  ")
             row.append(f"{name:<{LABEL_WIDTH}}", style=STYLE_BANK)
-            row.append(f"{own:^{OWN_COL_WIDTH}}", style=STYLE_ALERT)
-            row.append(f"{unseen:^{UNSEEN_COL_WIDTH}}", style=STYLE_FEDERATED)
+            row.append(f"{f'{own_b:.0%} → {own_a:.0%}':^{OWN_COL_WIDTH}}", style=STYLE_HEADING)
+            row.append(
+                f"{f'{unseen_b:.0%} → {unseen_a:.0%}':^{UNSEEN_COL_WIDTH}}", style=STYLE_FEDERATED
+            )
+            row.append(f"{f'{all_b:.0%} → {all_a:.0%}':^{OWN_COL_WIDTH}}", style=STYLE_FEDERATED)
             lines.append(row)
 
         self._screen(
-            self._heading("WHAT EACH BANK TRADES"),
+            self._heading("WHAT THE FEDERATION ADDS"),
             Text(""),
             header,
             Text(""),
             *lines,
             Text(""),
-            self._note("worse at its speciality. far better at everything else."),
+            self._note("nothing lost. each bank keeps its own model and adds a queue."),
         )
         self.pause(hold)
 

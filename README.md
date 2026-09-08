@@ -173,23 +173,37 @@ The final screens answer the question a risk officer asks straight away —
 what did federating actually cost us?
 
 ```
-  WHAT EACH BANK TRADES
+  WHAT THE FEDERATION ADDS
 
-                      its own typology   the ones it never saw
+                      its own typology   the ones it never saw       all cases
 
-  Northwind Bank         57% → 37%              1% → 45%
-  Caledonia Trust        69% → 32%              0% → 48%
-  Meridian PCB           84% → 59%              2% → 34%
+  Northwind Bank         57% → 57%              1% → 43%             19% → 48%
+  Caledonia Trust        69% → 69%              0% → 44%             23% → 52%
+  Meridian PCB           84% → 84%              2% → 41%             29% → 56%
 
-  worse at its speciality. far better at everything else.
+  nothing lost. each bank keeps its own model and adds a queue.
 ```
 
-**Every participant gets worse at the typology it specialises in.** Meridian
-alone catches 84% of cross-border; after federating it catches 59%. This is
-not a modelling failure — it is a fixed 2% alert budget being spread across
-three typologies instead of concentrated on one. Overall detection still
-roughly doubles for all three banks, which is the trade the federation is
-actually offering. `run_demo.py` prints the same comparison as a table.
+**Every bank keeps its own model and reviews the federated queue alongside it.**
+Nothing it already caught is lost, and it gains the typologies it was blind to.
+The cost is alert volume, not accuracy: the queue a team reviews grows from 2%
+of traffic to roughly 3.3%, because the two queues overlap.
+
+This matters because the obvious alternative — switching the local model off
+and running the federated one instead — is genuinely worse for every
+participant. `run_demo.py` prints that case as a footnote:
+
+```
+  FOOTNOTE - IF A BANK REPLACED ITS MODEL INSTEAD
+  caledonia_trust          69.2% -> 33.3%   ...
+```
+
+A single alert budget then has to cover three typologies instead of one, and
+each bank loses 13–36 points on its own speciality. It is not a tuning problem:
+more rounds, more trees and deeper trees were all measured and none of them
+close the gap — the effect is structural. Federated learning here augments an
+existing model rather than replacing it, which is how it would be deployed
+anyway.
 
 Two deliberate choices:
 
